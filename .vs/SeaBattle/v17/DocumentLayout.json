@@ -1,0 +1,37 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\Your PC\\Documents\\\u0414\u043B\u044F \u043E\u0442\u0447\u0451\u0442\u043E\u0432\\\u041F\u0440\u043E\u0435\u043A\u0442\u044B\\SeaBattle\\SeaBattle\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{5E0F5777-2470-4A71-B660-87DB50BE64C7}|SeaBattle.vcxproj|C:\\Users\\Your PC\\Documents\\\u0414\u043B\u044F \u043E\u0442\u0447\u0451\u0442\u043E\u0432\\\u041F\u0440\u043E\u0435\u043A\u0442\u044B\\SeaBattle\\SeaBattle\\SeaBattle.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{5E0F5777-2470-4A71-B660-87DB50BE64C7}|SeaBattle.vcxproj|solutionrelative:SeaBattle.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 1,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedHeight": 244,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "SeaBattle.cpp",
+              "DocumentMoniker": "C:\\Users\\Your PC\\Documents\\\u0414\u043B\u044F \u043E\u0442\u0447\u0451\u0442\u043E\u0432\\\u041F\u0440\u043E\u0435\u043A\u0442\u044B\\SeaBattle\\SeaBattle\\SeaBattle.cpp",
+              "RelativeDocumentMoniker": "SeaBattle.cpp",
+              "ToolTip": "C:\\Users\\Your PC\\Documents\\\u0414\u043B\u044F \u043E\u0442\u0447\u0451\u0442\u043E\u0432\\\u041F\u0440\u043E\u0435\u043A\u0442\u044B\\SeaBattle\\SeaBattle\\SeaBattle.cpp",
+              "RelativeToolTip": "SeaBattle.cpp",
+              "ViewState": "AgIAAF0AAAAAAAAAAAAAAH0AAAApAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
+              "WhenOpened": "2026-02-26T15:36:49.09Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
