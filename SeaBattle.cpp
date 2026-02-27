@@ -9,10 +9,23 @@ void SetColor(int color) {
     HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
     SetConsoleTextAttribute(hConsole, color);
 }
+class Ship {
+public:
+    int size; //размер корабля
+    int hits;//количество попаданий по кораблю
+    bool isAlive() const { return hits < size; } //Проверяет уничтожен корабль или нет
+
+    Ship(int s) : size(s), hits(0){}
+};
 
 class SeabattleGame {
 private:
-    char field[10][10];
+
+    Ship* field[10][10];
+
+    Ship* ships[10]; //максимальное количесвто поставленных кораблей (4 однопалубных, 3 двухпалубных, 2 трёхпалубных, 1 четырёхпалубный)
+    int shipCount; //счётчик сколько кораблей уже поставлено
+
     int shipLimits[5];
     int shipPlaced[5];
 
@@ -20,10 +33,28 @@ public:
     SeabattleGame() {
         for (int y = 0; y < 10; y++)
             for (int x = 0; x < 10; x++)
-                field[x][y] = '~';
-
+                field[x][y] = nullptr;
+        //лимиты кораблей
         shipLimits[0] = 0; shipLimits[1] = 4; shipLimits[2] = 3; shipLimits[3] = 2; shipLimits[4] = 1;
-        for (int i = 0; i < 5; i++) shipPlaced[i] = 0;
+        
+        for (int i = 0; i < 5; i++) {
+            shipPlaced[i] = 0; //все счётчики начинаются с 0
+        }
+
+        //массив кораблей
+        for (int i = 0; i < 10; i++) {
+            ships[i] = nullptr;
+        }
+        shipCount = 0;
+    }
+    SeabattleGame(const SeabattleGame&) = delete; //запрет на копиравание
+    SeabattleGame& operator=(const SeabattleGame&) = delete; // запрет на присваивание
+
+    //Деструктор - освобождаем память
+    ~SeabattleGame() {
+        for (int i = 0; i < shipCount; i++) {
+            delete ships[i];
+        }
     }
 
     string CheckShipSize(int size) {
@@ -67,31 +98,47 @@ public:
 
         for (int x = startX; x <= endX; x++)
             for (int y = startY; y <= endY; y++)
-                if (field[x][y] != '~')
+                if (field[x][y] != nullptr)
                     return "Клетка уже занята";
         return "";
     }
 
-    void PlaceShip(int x1, int y1, int x2, int y2) {
-        for (int x = min(x1, x2); x <= max(x1, x2); x++)
-            for (int y = min(y1, y2); y <= max(y1, y2); y++)
-                field[x][y] = '0';
+    void PlaceShip(int x1, int y1, int x2, int y2, int size) {
+
+        Ship* newShip = new Ship(size);
+
+        for (int x = min(x1, x2); x <= max(x1, x2);x++) {
+            for (int y = min(y1, y2); y <= max(y1, y2);y++) {
+                field[x][y] = newShip;
+            }
+        }
+        ships[shipCount] = newShip; //сохраняем указатель в массив на корабль
+        shipCount++;
     }
 
     void DrawField() {
         HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE); 
-
+        
         cout << "   0 1 2 3 4 5 6 7 8 9" << endl;
         for (int y = 0; y < 10; y++) {
             cout << y << "  ";
             for (int x = 0; x < 10; x++) {
-                if (field[x][y] == '~') {
+                if (field[x][y] == nullptr) {
                     SetConsoleTextAttribute(hConsole, 1); 
                     cout << '~' << " ";
                     SetConsoleTextAttribute(hConsole, 7); 
                 }
                 else {
-                    cout << field[x][y] << " ";
+                    Ship* s = field[x][y];
+                    if (s->hits == s->size) { //корабль подбит (реализация попадания по кораблю)
+                        SetConsoleTextAttribute(hConsole, 12);//красный цвет
+                        cout << "X" << " ";
+                        SetConsoleTextAttribute(hConsole, 7);
+                    }
+                    else {
+                        cout << 0 << " ";
+                    }
+                    
                 }
             }
             cout << endl;
@@ -109,9 +156,14 @@ public:
     }
 };
 
+
+
 int main() {
+
     SeabattleGame game;
+
     setlocale(LC_ALL, "Russian");
+
     while (true) {
         system("cls");
         SetColor(7);
@@ -125,7 +177,9 @@ int main() {
         cout << "0 - Выйти" << endl;
         cout << "Введите число:" << endl;
         int size;
-        if (!(cin >> size)) {
+        cin >> size;
+
+        if (cin.fail()) {
             cin.clear();
             cin.ignore(10000, '\n');
             cout << "Введите число от 1 до 4" << endl;
@@ -135,17 +189,16 @@ int main() {
 
         if (size == 0) break;
 
-        string msg = game.CheckShipSize(size);
-        if (msg != "") {
-            cout << msg << endl;
-            cin.get(); cin.get();
+        if (size < 1 || size > 4) {
+            cout << "Введите число от 1 до 4" << endl;
+            cin.get();  
             continue;
         }
 
-        msg = game.CheckShipLimit(size);
+        string msg = game.CheckShipLimit(size);
         if (msg != "") {
             cout << msg << endl;
-            cin.get(); cin.get();
+            cin.get();  
             continue;
         }
 
@@ -158,31 +211,32 @@ int main() {
                 cin.clear();
                 cin.ignore(10000, '\n');
                 cout << "Координаты должны быть числами от 0 до 9" << endl;
-                cin.get(); cin.get();
+                cin.get();
                 continue;
             }
 
             msg = game.CheckCoordinates(x, y);
             if (msg != "") {
                 cout << msg << endl;
-                cin.get(); cin.get();
+                cin.get();
                 continue;
             }
 
             msg = game.CheckBusy(x, y, x, y);
             if (msg != "") {
                 cout << msg << endl;
-                cin.get(); cin.get();
+                cin.get();
                 continue;
             }
 
-            game.PlaceShip(x, y, x, y);
+            game.PlaceShip(x, y, x, y, size);
             game.IncrementShipCount(size);
             cout << "Однопалубный корабль добавлен" << endl;
-            cin.get(); cin.get();
+            cin.get();
             continue;
         }
 
+        //для многопалубных
         cout << "Введите координаты начала (x1 y1):" << endl;
         int x1, y1, x2, y2;
         cin >> x1 >> y1;
@@ -194,27 +248,31 @@ int main() {
             cin.clear();
             cin.ignore(10000, '\n');
             cout << "Координаты должны быть числами от 0 до 9" << endl;
-            cin.get(); cin.get();
+            cin.get();
             continue;
         }
 
         msg = game.CheckCoordinates(x1, y1);
-        if (msg != "") { cout << msg << endl; cin.get(); cin.get(); continue; }
-        msg = game.CheckCoordinates(x2, y2);
-        if (msg != "") { cout << msg << endl; cin.get(); cin.get(); continue; }
-        msg = game.CheckDirection(x1, y1, x2, y2);
-        if (msg != "") { cout << msg << endl; cin.get(); cin.get(); continue; }
-        msg = game.CheckLength(x1, y1, x2, y2, size);
-        if (msg != "") { cout << msg << endl; cin.get(); cin.get(); continue; }
-        msg = game.CheckBusy(x1, y1, x2, y2);
-        if (msg != "") { cout << msg << endl; cin.get(); cin.get(); continue; }
+        if (msg != "") { cout << msg << endl; cin.get(); continue; }
 
-        game.PlaceShip(x1, y1, x2, y2);
+        msg = game.CheckCoordinates(x2, y2);
+        if (msg != "") { cout << msg << endl; cin.get(); continue; }
+
+        msg = game.CheckDirection(x1, y1, x2, y2);
+        if (msg != "") { cout << msg << endl; cin.get(); continue; }
+
+        msg = game.CheckLength(x1, y1, x2, y2, size);
+        if (msg != "") { cout << msg << endl; cin.get(); continue; }
+
+        msg = game.CheckBusy(x1, y1, x2, y2);
+        if (msg != "") { cout << msg << endl; cin.get(); continue; }
+
+        game.PlaceShip(x1, y1, x2, y2, size);
         game.IncrementShipCount(size);
 
         string shipNames[] = { "", "Однопалубный", "Двухпалубный", "Трёхпалубный", "Четырёхпалубный" };
         cout << shipNames[size] << " корабль добавлен" << endl;
-        cin.get(); cin.get();
+        cin.get();
 
         if (game.AllShipsPlaced()) {
             cout << "Игра завершена" << endl;
@@ -222,6 +280,5 @@ int main() {
             break;
         }
     }
-
     return 0;
 }
