@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <ctime>
 #include <windows.h>
+#include <fcntl.h>
+#include <io.h>
 
 using namespace std;
 
@@ -29,7 +31,6 @@ private:
     int shipPlaced[5];
 
 public:
-    // Счётчик попаданий по кораблям противника
     int score;
 
     SeabattleGame() {
@@ -166,6 +167,18 @@ public:
         return true;
     }
 
+   /* bool IsDead() {
+        for (int y = 0; y < 10; y++) {
+            for (int x = 0; x < 10; x++) {
+                    Ship* s = field[x][y];
+                    if (field[x][y] == nullptr) {
+
+                    }
+                    else if(s->hits == s->size) return true;
+            }
+        }
+    }*/
+
     // Расставить корабли случайно
     void PlaceShipsRandom() {
         int sizes[] = { 4, 3, 3, 2, 2, 2, 1, 1, 1, 1 };
@@ -226,9 +239,11 @@ public:
                         SetConsoleTextAttribute(hConsole, 7);
                     }
                     else if (showShips) {
-                        SetColor(7);
-                        cout << "0 ";
+                        SetConsoleTextAttribute(hConsole, 7);
+                        cout << "O ";
+;
                     }
+
                     else {
                         SetConsoleTextAttribute(hConsole, 1);
                         cout << "~ ";
@@ -262,12 +277,11 @@ public:
 
 
 int main() {
-
     setlocale(LC_ALL, "Russian");
     srand(time(0));
     SeabattleGame player;
     SeabattleGame bot;
-
+    char array[] = { 'A','B','C','D', 'E','F', 'G','H','I','J', 'a','b','c','d','e','f','g','h','i','j' };
     system("cls");
     SetColor(14);
     cout << "<---- ВАШЕ ПОЛЕ ---->" << endl;
@@ -375,7 +389,7 @@ int main() {
             char wasd;
             char coorLetter;
             cin >> coorLetter >> x1;
-            // Вторая координата
+            
             cout << "Выберете направлене корабля:" << endl;
             cin >> wasd;
 
@@ -451,18 +465,16 @@ int main() {
         Sleep(500);
     }
 
-    // Бот расставляет свои корабли рандомно
+    // Бот расставляет свои корабли случайно
     bot.PlaceShipsRandom();
 
     // Массивы атакованных клеток
     bool playerAttacked[10][10] = {}; // куда игрок уже стрелял (по боту)
     bool botAttacked[10][10] = {};    // куда бот уже стрелял (по игроку)
 
-    // Счётчики
-    int playerScore = 0; // сколько раз игрок попал
-    int botScore = 0;    // сколько раз бот попал
 
-    // ===== ФАЗА БОЯ =====
+
+    // Бой
     while (true) {
         system("cls");
         SetColor(14);
@@ -505,10 +517,18 @@ int main() {
             continue;
         }
         else if (result == 1) {
-            playerScore++;
             SetColor(12);
             cout << "ПОПАЛ!" << endl;
-            SetColor(2);
+           /* if (bot.IsDead()) {
+                SetColor(12);
+                cout << "КОРАБЛЬ УНИЧТОЖЕН!!!" << endl;
+                SetColor(2);
+            }
+            if(player.IsDead()){
+                SetColor(12);
+                cout << "КОРАБЛЬ УНИЧТОЖЕН!!!" << endl;
+                SetColor(2);
+            }*/
         }
         else {
             SetColor(8);
@@ -538,13 +558,12 @@ int main() {
 
         int botResult = player.Shoot(bx, by, botAttacked);
         if (botResult == 1) {
-            botScore++;
             SetColor(12);
-            cout << "Бот выстрелил в (" << bx << ", " << by << ") - ПОПАЛ!" << endl;
+            cout << "Бот выстрелил в (" << array[by] << ", " << bx << ") - ПОПАЛ!" << endl;
             SetColor(2);
         }
         else {
-            cout << "Бот выстрелил в (" << bx << ", " << by << ") - мимо." << endl;
+            cout << "Бот выстрелил в (" << array[by] << ", " << bx << ") - мимо." << endl;
         }
         Sleep(1000);
 
