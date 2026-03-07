@@ -167,6 +167,43 @@ public:
         return true;
     }
 
+    //обводка
+    void ShipBorder(int x, int y, bool attacked[10][10]) {
+        Ship* s = field[x][y];
+
+        //клетки куда попали
+        int minX = x, maxX = x;
+        int minY = y, maxY = y;
+
+        //Проходим всё поле и ищем клетки этого же корабля
+        for (int sy = 0; sy < 10; sy++) {
+            for (int sx = 0; sx < 10; sx++) {
+                if (field[sx][sy] == s) {
+                    //раширение границы если нашли клетку корабля
+                    if (sx < minX) { minX = sx; }
+                    if (sx > maxX) { maxX = sx; }
+                    if (sy < minY) { minY = sy; }
+                    if (sy > maxY) { maxY = sy; }
+                }
+            }
+        }
+        //Обводка вокруг корабля +1 с каждой стороны
+        for (int sx = minX - 1; sx <= maxX + 1; sx++) {
+            for (int sy = minY - 1; sy <= maxY + 1; sy++) {
+                //Проверяем что не вышли за границу поля
+                if (sx >= 0 && sx <= 9 && sy >= 0 && sy <= 9) {
+                    attacked[sx][sy] = true; //стреляем в клетку
+                }
+            }
+        }
+    }
+
+    // убит ли корабль? 
+    bool ShipDead(int x, int y) {
+        if (field[x][y] == nullptr) return false;
+        return !field[x][y]->isAlive();
+    }
+
    /* bool IsDead() {
         for (int y = 0; y < 10; y++) {
             for (int x = 0; x < 10; x++) {
@@ -304,6 +341,7 @@ int main() {
 
     if (menu == 1) {
         while (true) {
+            int botLastHitX = -1, botLastHitY = -1; 
             // Расстановка
             system("cls");
             SetColor(14);
@@ -476,6 +514,7 @@ int main() {
 
     // Бой
     while (true) {
+        int botLastHitX = -1, botLastHitY = -1;
         system("cls");
         SetColor(14);
         cout << "<---- ПОЛЕ БОТА ---->" << endl;
@@ -519,16 +558,16 @@ int main() {
         else if (result == 1) {
             SetColor(12);
             cout << "ПОПАЛ!" << endl;
-           /* if (bot.IsDead()) {
+            cout << "Стреляй ещё" << endl;
+           if (bot.ShipDead(x, y)) {
                 SetColor(12);
                 cout << "КОРАБЛЬ УНИЧТОЖЕН!!!" << endl;
+                bot.ShipBorder(x, y, playerAttacked);
                 SetColor(2);
-            }
-            if(player.IsDead()){
-                SetColor(12);
-                cout << "КОРАБЛЬ УНИЧТОЖЕН!!!" << endl;
-                SetColor(2);
-            }*/
+           }
+           SetColor(2);
+           Sleep(800);
+           continue; // Это если попал или убил, хот ещё раз был
         }
         else {
             SetColor(8);
@@ -537,6 +576,7 @@ int main() {
         }
 
         // Проверяем победу игрока
+
         if (bot.AllShipsDead()) {
             system("cls");
             SetColor(10);
@@ -550,20 +590,40 @@ int main() {
 
         Sleep(1500);
         // Ход бота 
-        int bx, by;
-        do {
-            bx = rand() % 10;
-            by = rand() % 10;
-        } while (botAttacked[bx][by]);
-
-        int botResult = player.Shoot(bx, by, botAttacked);
-        if (botResult == 1) {
-            SetColor(12);
-            cout << "Бот выстрелил в (" << array[by] << ", " << bx << ") - ПОПАЛ!" << endl;
-            SetColor(2);
-        }
-        else {
-            cout << "Бот выстрелил в (" << array[by] << ", " << bx << ") - мимо." << endl;
+        while (true) {
+            int bx, by;
+            if (botLastHitX != -1) {
+                if (!botAttacked[botLastHitX - 1][botLastHitY] && botLastHitX - 1 >= 0) { bx = botLastHitX - 1; by = botLastHitY; } //влево
+                else if (!botAttacked[botLastHitX + 1][botLastHitY] && botLastHitX + 1 <= 9) { bx = botLastHitX + 1; by = botLastHitY; } //вправо
+                else if (!botAttacked[botLastHitX][botLastHitY - 1] && botLastHitY - 1 >= 0) { bx = botLastHitX;     by = botLastHitY - 1; } //вверх
+                else if (!botAttacked[botLastHitX][botLastHitY + 1] && botLastHitY + 1 <= 9) { bx = botLastHitX;     by = botLastHitY + 1; } //вниз
+                else { botLastHitX = -1; botLastHitY = -1; }
+            }
+            if (botLastHitX == -1) {
+                do {
+                    bx = rand() % 10;
+                    by = rand() % 10;
+                } while (botAttacked[bx][by]);
+            }
+            int botResult = player.Shoot(bx, by, botAttacked);
+            if (botResult == 1) {
+                botLastHitX = bx; botLastHitY = by; //запоминаем попадание
+                SetColor(12);
+                cout << "Бот выстрелил в (" << array[by] << ", " << bx << ") - ПОПАЛ!" << endl;
+                if (player.ShipDead(bx, by)) {
+                    botLastHitX = -1; botLastHitY = -1; //корабль потоплен
+                    cout << "Бот потопил корабль!" << endl;
+                    player.ShipBorder(bx, by, botAttacked);
+                }
+                SetColor(2);
+                Sleep(800);
+                continue; //попал ходит ещё раз
+            }
+            else {
+                cout << "Бот выстрелил в (" << array[by] << ", " << bx << ") - мимо." << endl;
+                Sleep(1000);
+                break; //ход закончен
+            }
         }
         Sleep(1000);
 
