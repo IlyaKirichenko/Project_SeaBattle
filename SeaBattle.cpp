@@ -6,6 +6,7 @@
 #include <windows.h>
 #include <fcntl.h>
 #include <io.h>
+#include <chrono>
 
 using namespace std;
 
@@ -204,17 +205,6 @@ public:
         return !field[x][y]->isAlive();
     }
 
-   /* bool IsDead() {
-        for (int y = 0; y < 10; y++) {
-            for (int x = 0; x < 10; x++) {
-                    Ship* s = field[x][y];
-                    if (field[x][y] == nullptr) {
-
-                    }
-                    else if(s->hits == s->size) return true;
-            }
-        }
-    }*/
 
     // Расставить корабли случайно
     void PlaceShipsRandom() {
