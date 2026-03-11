@@ -1,4 +1,4 @@
-﻿#include <iostream>
+#include <iostream>
 #include <string>
 #include <cmath>
 #include <cstdlib>
@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <io.h>
 #include <chrono>
+#include <thread> // ДОБАВЛЕНО ДЛЯ ПОТОКОВ
 
 using namespace std;
 
@@ -148,8 +149,6 @@ public:
         shipPlaced[size]++;
     }
 
-
-
     // Выстрел по этому полю. Возвращает: 0 - мимо, 1 - попал, 2 - уже стреляли
     int Shoot(int x, int y, bool attacked[10][10]) {
         if (attacked[x][y]) return 2;
@@ -212,7 +211,7 @@ public:
         for (int i = 0; i < 10; i++) {
             bool placed = false;
             while (!placed) {
-                int dir = rand() % 2; 
+                int dir = rand() % 2;
                 int x1 = rand() % 10;
                 int y1 = rand() % 10;
                 int x2, y2;
@@ -268,9 +267,7 @@ public:
                     else if (showShips) {
                         SetConsoleTextAttribute(hConsole, 7);
                         cout << "O ";
-;
                     }
-
                     else {
                         SetConsoleTextAttribute(hConsole, 1);
                         cout << "~ ";
@@ -294,9 +291,10 @@ public:
                 else {
                     return i;
                 }
-                
+
             }
         }
+        return -1;
     }
 
 };
@@ -331,7 +329,6 @@ int main() {
 
     if (menu == 1) {
         while (true) {
-            int botLastHitX = -1, botLastHitY = -1; 
             // Расстановка
             system("cls");
             SetColor(14);
@@ -417,7 +414,7 @@ int main() {
             char wasd;
             char coorLetter;
             cin >> coorLetter >> x1;
-            
+
             cout << "Выберете направлене корабля:" << endl;
             cin >> wasd;
 
@@ -497,140 +494,165 @@ int main() {
     bot.PlaceShipsRandom();
 
     // Массивы атакованных клеток
-    bool playerAttacked[10][10] = {}; // куда игрок уже стрелял (по боту)
-    bool botAttacked[10][10] = {};    // куда бот уже стрелял (по игроку)
+    bool playerAttacked[10][10] = {}; // куда игрок уже стрелял
+    bool botAttacked[10][10] = {};    // куда бот уже стрелял 
 
+    // Ивент игрока (изначально TRUE - игрок начинает первым)
+    HANDLE hPlayerTurn = CreateEventA(NULL, FALSE, TRUE, NULL);
+    HANDLE hBotTurn = CreateEventA(NULL, FALSE, FALSE, NULL);
 
+    bool gameIsOver = false;
 
-    // Бой
-    while (true) {
-        int botLastHitX = -1, botLastHitY = -1;
-        system("cls");
-        SetColor(14);
-        cout << "<---- ПОЛЕ БОТА ---->" << endl;
-        SetColor(2);
-        bot.DrawFieldWithAttacks(false, playerAttacked);
-        SetColor(14);
-        cout << "\n<---- ВАШЕ ПОЛЕ ---->" << endl;
-        SetColor(2);
-        player.DrawFieldWithAttacks(true, botAttacked);
+    // ----- ПОТОК ИГРОКА -----
+    thread t_player([&]() {
+        while (!gameIsOver) {
+            // Ждем своей очереди по ивенту
+            WaitForSingleObject(hPlayerTurn, INFINITE);
+            if (gameIsOver) break;
 
-        SetColor(2);
-
-        // Ход игрока
-        cout << "\nВаш ход! Введите координаты выстрела (пример - A 0):" << endl;
-        int x, y;
-        char coorLetter;
-        cin >> coorLetter >> x ;
-
-        y = player.SwitchLetterToDigit(coorLetter);
-
-        if (cin.fail()) {
-            cin.clear();
-            cin.ignore(10000, '\n');
-            cout << "Введите числа от 0 до 9" << endl;
-            Sleep(500);
-            continue;
-        }
-
-        if (x < 0 || x > 9 || y < 0 || y > 9) {
-            cout << "Координаты вне поля" << endl;
-            Sleep(500);
-            continue;
-        }
-
-        int result = bot.Shoot(x, y, playerAttacked);
-        if (result == 2) {
-            cout << "Вы уже стреляли сюда!" << endl;
-            Sleep(500);
-            continue;
-        }
-        else if (result == 1) {
-            SetColor(12);
-            cout << "ПОПАЛ!" << endl;
-            cout << "Стреляй ещё" << endl;
-           if (bot.ShipDead(x, y)) {
-                SetColor(12);
-                cout << "КОРАБЛЬ УНИЧТОЖЕН!!!" << endl;
-                bot.ShipBorder(x, y, playerAttacked);
-                SetColor(2);
-           }
-           SetColor(2);
-           Sleep(800);
-           continue; // Это если попал или убил, хот ещё раз был
-        }
-        else {
-            SetColor(8);
-            cout << "Мимо." << endl;
-            SetColor(2);
-        }
-
-        // Проверяем победу игрока
-
-        if (bot.AllShipsDead()) {
             system("cls");
-            SetColor(10);
-            cout << "<---- ВЫ ПОБЕДИЛИ! ---->" << endl;
+            SetColor(14);
+            cout << "<---- ПОЛЕ БОТА ---->" << endl;
+            SetColor(2);
+            bot.DrawFieldWithAttacks(false, playerAttacked);
+            SetColor(14);
+            cout << "\n<---- ВАШЕ ПОЛЕ ---->" << endl;
+            SetColor(2);
+            player.DrawFieldWithAttacks(true, botAttacked);
 
             SetColor(2);
-            cin.get();
-            cin.get();
-            break;
-        }
+            cout << "\nВаш ход! Введите координаты выстрела (пример - A 0):" << endl;
+            int x, y;
+            char coorLetter;
+            cin >> coorLetter >> x;
 
-        Sleep(1500);
-        // Ход бота 
-        while (true) {
-            int bx, by;
-            if (botLastHitX != -1) {
-                if (!botAttacked[botLastHitX - 1][botLastHitY] && botLastHitX - 1 >= 0) { bx = botLastHitX - 1; by = botLastHitY; } //влево
-                else if (!botAttacked[botLastHitX + 1][botLastHitY] && botLastHitX + 1 <= 9) { bx = botLastHitX + 1; by = botLastHitY; } //вправо
-                else if (!botAttacked[botLastHitX][botLastHitY - 1] && botLastHitY - 1 >= 0) { bx = botLastHitX;     by = botLastHitY - 1; } //вверх
-                else if (!botAttacked[botLastHitX][botLastHitY + 1] && botLastHitY + 1 <= 9) { bx = botLastHitX;     by = botLastHitY + 1; } //вниз
-                else { botLastHitX = -1; botLastHitY = -1; }
+            y = player.SwitchLetterToDigit(coorLetter);
+
+            if (cin.fail()) {
+                cin.clear();
+                cin.ignore(10000, '\n');
+                cout << "Введите числа от 0 до 9" << endl;
+                Sleep(500);
+                SetEvent(hPlayerTurn); // Ошибка ввода - повторяем ход
+                continue;
             }
-            if (botLastHitX == -1) {
-                do {
-                    bx = rand() % 10;
-                    by = rand() % 10;
-                } while (botAttacked[bx][by]);
+
+            if (x < 0 || x > 9 || y < 0 || y > 9) {
+                cout << "Координаты вне поля" << endl;
+                Sleep(500);
+                SetEvent(hPlayerTurn); // Ошибка ввода - повторяем ход
+                continue;
             }
-            int botResult = player.Shoot(bx, by, botAttacked);
-            if (botResult == 1) {
-                botLastHitX = bx; botLastHitY = by; //запоминаем попадание
+
+            int result = bot.Shoot(x, y, playerAttacked);
+            if (result == 2) {
+                cout << "Вы уже стреляли сюда!" << endl;
+                Sleep(500);
+                SetEvent(hPlayerTurn); // Ошибка - повторяем ход
+                continue;
+            }
+            else if (result == 1) {
                 SetColor(12);
-                cout << "Бот выстрелил в (" << array[by] << ", " << bx << ") - ПОПАЛ!" << endl;
-                if (player.ShipDead(bx, by)) {
-                    botLastHitX = -1; botLastHitY = -1; //корабль потоплен
-                    cout << "Бот потопил корабль!" << endl;
-                    player.ShipBorder(bx, by, botAttacked);
+                cout << "ПОПАЛ!" << endl;
+                cout << "Стреляй ещё" << endl;
+                if (bot.ShipDead(x, y)) {
+                    SetColor(12);
+                    cout << "КОРАБЛЬ УНИЧТОЖЕН!!!" << endl;
+                    bot.ShipBorder(x, y, playerAttacked);
+                    SetColor(2);
                 }
                 SetColor(2);
                 Sleep(800);
-                continue; //попал ходит ещё раз
+
+                if (bot.AllShipsDead()) {
+                    system("cls");
+                    SetColor(10);
+                    cout << "<---- ВЫ ПОБЕДИЛИ! ---->" << endl;
+                    SetColor(2);
+                    gameIsOver = true;
+                    SetEvent(hBotTurn); // Будим бота, чтобы он завершил свою работу
+                    break;
+                }
+                SetEvent(hPlayerTurn); // Попал - ходим ещё раз!
+                continue;
             }
             else {
-                cout << "Бот выстрелил в (" << array[by] << ", " << bx << ") - мимо." << endl;
-                Sleep(1000);
-                break; //ход закончен
+                SetColor(8);
+                cout << "Мимо." << endl;
+                SetColor(2);
+                Sleep(1500);
+                SetEvent(hBotTurn); // Передаем ход боту 
             }
         }
-        Sleep(1000);
+        });
 
-        // Проверяем поражение игрока
-        if (player.AllShipsDead()) {
-            system("cls");
-            SetColor(12);
-            cout << "<---- БОТ ПОБЕДИЛ! ---->" << endl;
+    // ----- ПОТОК БОТА -----
+    thread t_bot([&]() {
+        int botLastHitX = -1, botLastHitY = -1;
 
-            SetColor(2);
-            cin.get();
-            cin.get();
-            break;
+        while (!gameIsOver) {
+            // Ждем своей очереди по ивенту
+            WaitForSingleObject(hBotTurn, INFINITE);
+            if (gameIsOver) break;
+
+            while (!gameIsOver) {
+                int bx, by;
+                if (botLastHitX != -1) {
+                    if (!botAttacked[botLastHitX - 1][botLastHitY] && botLastHitX - 1 >= 0) { bx = botLastHitX - 1; by = botLastHitY; } //влево
+                    else if (!botAttacked[botLastHitX + 1][botLastHitY] && botLastHitX + 1 <= 9) { bx = botLastHitX + 1; by = botLastHitY; } //вправо
+                    else if (!botAttacked[botLastHitX][botLastHitY - 1] && botLastHitY - 1 >= 0) { bx = botLastHitX;     by = botLastHitY - 1; } //вверх
+                    else if (!botAttacked[botLastHitX][botLastHitY + 1] && botLastHitY + 1 <= 9) { bx = botLastHitX;     by = botLastHitY + 1; } //вниз
+                    else { botLastHitX = -1; botLastHitY = -1; }
+                }
+                if (botLastHitX == -1) {
+                    do {
+                        bx = rand() % 10;
+                        by = rand() % 10;
+                    } while (botAttacked[bx][by]);
+                }
+                int botResult = player.Shoot(bx, by, botAttacked);
+                if (botResult == 1) {
+                    botLastHitX = bx; botLastHitY = by; 
+                    SetColor(12);
+                    cout << "\nБот выстрелил в (" << array[by] << ", " << bx << ") - ПОПАЛ!" << endl;
+                    if (player.ShipDead(bx, by)) {
+                        botLastHitX = -1; botLastHitY = -1; 
+                        cout << "Бот потопил корабль!" << endl;
+                        player.ShipBorder(bx, by, botAttacked);
+                    }
+                    SetColor(2);
+                    Sleep(1000);
+
+                    // Проверяем поражение игрока
+                    if (player.AllShipsDead()) {
+                        system("cls");
+                        SetColor(12);
+                        cout << "<---- БОТ ПОБЕДИЛ! ---->" << endl;
+                        SetColor(2);
+                        gameIsOver = true;
+                        SetEvent(hPlayerTurn); // Будим игрока, чтобы он завершил работу
+                        break;
+                    }
+                    continue; 
+                }
+                else {
+                    cout << "\nБот выстрелил в (" << array[by] << ", " << bx << ") - мимо." << endl;
+                    Sleep(1500);
+                    SetEvent(hPlayerTurn); // Передаем ход игроку (Активируем ивент игрока)
+                    break; 
+                }
+            }
         }
+        });
 
-        cin.get();
-    }
+    t_player.join();
+    t_bot.join();
+
+    CloseHandle(hPlayerTurn);
+    CloseHandle(hBotTurn);
+
+    cin.get();
+    cin.get();
 
     return 0;
 }
