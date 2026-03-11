@@ -7,7 +7,7 @@
 #include <fcntl.h>
 #include <io.h>
 #include <chrono>
-#include <thread> // ДОБАВЛЕНО ДЛЯ ПОТОКОВ
+#include <thread>
 
 using namespace std;
 
@@ -656,3 +656,4 @@ int main() {
 
     return 0;
 }
+
