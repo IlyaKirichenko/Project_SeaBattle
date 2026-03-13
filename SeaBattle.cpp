@@ -1,4 +1,4 @@
-#define _CRT_SECURE_NO_WARNINGS
+﻿#define _CRT_SECURE_NO_WARNINGS
 #include <iostream>
 #include <string>
 #include <cmath>
@@ -430,7 +430,7 @@ DWORD WINAPI BotThread(LPVOID lpParam) {
                 cout << "\nБот выстрелил в (" << array[by] << ", " << bx << ") - мимо." << endl;
                 Sleep(1500);
                 SetEvent(hPlayerTurn); // Сигнализируем, что теперь очередь Игрока
-                break; 
+                break;
             }
         }
     }
@@ -441,6 +441,7 @@ DWORD WINAPI BotThread(LPVOID lpParam) {
 int main() {
     setlocale(LC_ALL, "Russian");
     srand(time(0));
+    time_t startTime = time(nullptr);
 
     // ... РАССТАНОВКА КОРАБЛЕЙ В ОСНОВНОМ ПОТОКЕ ...
     system("cls");
@@ -571,8 +572,6 @@ int main() {
 
     bot.PlaceShipsRandom();
 
-    // ЗАПУСК ИГРЫ В Win32 ПОТОКАХ
-
     hPlayerTurn = CreateEventA(NULL, FALSE, TRUE, NULL);  // Игрок ходит первым (TRUE)
     hBotTurn = CreateEventA(NULL, FALSE, FALSE, NULL);    // Бот ждет (FALSE)
 
@@ -584,12 +583,19 @@ int main() {
 
     WaitForMultipleObjects(2, hThreads, TRUE, INFINITE);
 
+    time_t endTime = time (nullptr);
+    int gameTime = difftime(endTime, startTime);
+
+    int minutes = gameTime / 60;
+    int second = gameTime % 60;
+
     CloseHandle(hPlayerTurn);
     CloseHandle(hBotTurn);
     for (int i = 0; i < 2; i++) {
         CloseHandle(hThreads[i]);
     }
-
+    cout << endl;
+    cout << "Время игры: " << minutes <<" минут "<< second <<" секунд" << endl;
     cout << "\nИгра окончена. Нажмите Enter для выхода...";
     cin.get(); cin.get();
 
