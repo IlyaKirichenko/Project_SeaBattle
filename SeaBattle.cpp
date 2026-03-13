@@ -1,3 +1,4 @@
+#define _CRT_SECURE_NO_WARNINGS
 #include <iostream>
 #include <string>
 #include <cmath>
@@ -6,8 +7,6 @@
 #include <windows.h>
 #include <fcntl.h>
 #include <io.h>
-#include <chrono>
-#include <thread>
 
 using namespace std;
 
@@ -106,7 +105,6 @@ public:
         shipCount++;
     }
 
-    // Поле для игрока (расстановка)
     void DrawField(bool showShips) {
         HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
         cout << "   0 1 2 3 4 5 6 7 8 9" << endl;
@@ -149,7 +147,6 @@ public:
         shipPlaced[size]++;
     }
 
-    // Выстрел по этому полю. Возвращает: 0 - мимо, 1 - попал, 2 - уже стреляли
     int Shoot(int x, int y, bool attacked[10][10]) {
         if (attacked[x][y]) return 2;
         attacked[x][y] = true;
@@ -160,26 +157,20 @@ public:
         return 0;
     }
 
-    // Все корабли уничтожены?
     bool AllShipsDead() {
         for (int i = 0; i < shipCount; i++)
             if (ships[i]->isAlive()) return false;
         return true;
     }
 
-    //обводка
     void ShipBorder(int x, int y, bool attacked[10][10]) {
         Ship* s = field[x][y];
-
-        //клетки куда попали
         int minX = x, maxX = x;
         int minY = y, maxY = y;
 
-        //Проходим всё поле и ищем клетки этого же корабля
         for (int sy = 0; sy < 10; sy++) {
             for (int sx = 0; sx < 10; sx++) {
                 if (field[sx][sy] == s) {
-                    //раширение границы если нашли клетку корабля
                     if (sx < minX) { minX = sx; }
                     if (sx > maxX) { maxX = sx; }
                     if (sy < minY) { minY = sy; }
@@ -187,31 +178,26 @@ public:
                 }
             }
         }
-        //Обводка вокруг корабля +1 с каждой стороны
         for (int sx = minX - 1; sx <= maxX + 1; sx++) {
             for (int sy = minY - 1; sy <= maxY + 1; sy++) {
-                //Проверяем что не вышли за границу поля
                 if (sx >= 0 && sx <= 9 && sy >= 0 && sy <= 9) {
-                    attacked[sx][sy] = true; //стреляем в клетку
+                    attacked[sx][sy] = true; 
                 }
             }
         }
     }
 
-    // убит ли корабль? 
     bool ShipDead(int x, int y) {
         if (field[x][y] == nullptr) return false;
         return !field[x][y]->isAlive();
     }
 
-
-    // Расставить корабли случайно
     void PlaceShipsRandom() {
         int sizes[] = { 4, 3, 3, 2, 2, 2, 1, 1, 1, 1 };
         for (int i = 0; i < 10; i++) {
             bool placed = false;
             while (!placed) {
-                int dir = rand() % 2;
+                int dir = rand() % 2; 
                 int x1 = rand() % 10;
                 int y1 = rand() % 10;
                 int x2, y2;
@@ -230,7 +216,6 @@ public:
         }
     }
 
-    // Поле с учётом атакованных клеток (для бота — не показываем корабли)
     void DrawFieldWithAttacks(bool showShips, bool attacked[10][10]) {
         HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
         cout << "  0 1 2 3 4 5 6 7 8 9" << endl;
@@ -280,33 +265,182 @@ public:
     }
 
     int SwitchLetterToDigit(char coorLetter) {
-
         char array[] = { 'A','B','C','D', 'E','F', 'G','H','I','J', 'a','b','c','d','e','f','g','h','i','j' };
         for (int i = 0; i < 20; i++) {
             if (coorLetter == array[i]) {
-                if (i >= 10)
-                {
-                    return i - 10;
-                }
-                else {
-                    return i;
-                }
-
+                if (i >= 10) return i - 10;
+                else return i;
             }
         }
         return -1;
     }
-
 };
 
+SeabattleGame player;
+SeabattleGame bot;
+
+bool playerAttacked[10][10] = {}; // куда игрок уже стрелял (по боту)
+bool botAttacked[10][10] = {};    // куда бот уже стрелял (по игроку)
+
+HANDLE hPlayerTurn; // Ивент: очередь Игрока
+HANDLE hBotTurn;    // Ивент: очередь Бота
+bool isRunning = true; // Флаг работы 
+
+// ПОТОК ИГРОКА
+DWORD WINAPI PlayerThread(LPVOID lpParam) {
+    while (isRunning) {
+        // Ждем сигнала, что наступил наш ход
+        WaitForSingleObject(hPlayerTurn, INFINITE);
+        if (!isRunning) break; // Проверяем, не закончилась ли игра пока мы спали
+
+        system("cls");
+        SetColor(14);
+        cout << "<---- ПОЛЕ БОТА ---->" << endl;
+        SetColor(2);
+        bot.DrawFieldWithAttacks(false, playerAttacked);
+        SetColor(14);
+        cout << "\n<---- ВАШЕ ПОЛЕ ---->" << endl;
+        SetColor(2);
+        player.DrawFieldWithAttacks(true, botAttacked);
+
+        SetColor(2);
+        
+        cout << "\nВаш ход! Введите координаты выстрела (пример - A 0):" << endl;
+        int x, y;
+        char coorLetter;
+        cin >> coorLetter >> x ;
+
+        y = player.SwitchLetterToDigit(coorLetter);
+
+        if (cin.fail()) {
+            cin.clear();
+            cin.ignore(10000, '\n');
+            cout << "Введите числа от 0 до 9" << endl;
+            Sleep(500);
+            SetEvent(hPlayerTurn); // Перезапускаем свой же ход
+            continue;
+        }
+
+        if (x < 0 || x > 9 || y < 0 || y > 9) {
+            cout << "Координаты вне поля" << endl;
+            Sleep(500);
+            SetEvent(hPlayerTurn);
+            continue;
+        }
+
+        int result = bot.Shoot(x, y, playerAttacked);
+        if (result == 2) {
+            cout << "Вы уже стреляли сюда!" << endl;
+            Sleep(500);
+            SetEvent(hPlayerTurn);
+            continue;
+        }
+        else if (result == 1) {
+            SetColor(12);
+            cout << "ПОПАЛ!" << endl;
+            cout << "Стреляй ещё" << endl;
+            if (bot.ShipDead(x, y)) {
+                SetColor(12);
+                cout << "КОРАБЛЬ УНИЧТОЖЕН!!!" << endl;
+                bot.ShipBorder(x, y, playerAttacked);
+                SetColor(2);
+            }
+            SetColor(2);
+            Sleep(800);
+            
+            // Проверка победы игрока
+            if (bot.AllShipsDead()) {
+                system("cls");
+                SetColor(10);
+                cout << "<---- ВЫ ПОБЕДИЛИ! ---->" << endl;
+                SetColor(2);
+                
+                isRunning = false; // Сообщаем всем потокам, что конец
+                SetEvent(hBotTurn); // Будим бота, чтобы он увидел isRunning 
+                break;
+            }
+            SetEvent(hPlayerTurn); // Ходим ещё раз
+            continue; 
+        }
+        else {
+            SetColor(8);
+            cout << "Мимо." << endl;
+            SetColor(2);
+            Sleep(1500);
+            SetEvent(hBotTurn); // Сигнализируем, что теперь очередь Бота
+        }
+    }
+    return 0;
+}
+
+// ПОТОК БОТА
+DWORD WINAPI BotThread(LPVOID lpParam) {
+    int botLastHitX = -1, botLastHitY = -1;
+    char array[] = { 'A','B','C','D', 'E','F', 'G','H','I','J' };
+
+    while (isRunning) {
+        // Ждем сигнала, что наступил наш ход
+        WaitForSingleObject(hBotTurn, INFINITE);
+        if (!isRunning) break; 
+
+        while (isRunning) { // Внутренний цикл добивания
+            int bx, by;
+            if (botLastHitX != -1) {
+                if (!botAttacked[botLastHitX - 1][botLastHitY] && botLastHitX - 1 >= 0) { bx = botLastHitX - 1; by = botLastHitY; } //влево
+                else if (!botAttacked[botLastHitX + 1][botLastHitY] && botLastHitX + 1 <= 9) { bx = botLastHitX + 1; by = botLastHitY; } //вправо
+                else if (!botAttacked[botLastHitX][botLastHitY - 1] && botLastHitY - 1 >= 0) { bx = botLastHitX;     by = botLastHitY - 1; } //вверх
+                else if (!botAttacked[botLastHitX][botLastHitY + 1] && botLastHitY + 1 <= 9) { bx = botLastHitX;     by = botLastHitY + 1; } //вниз
+                else { botLastHitX = -1; botLastHitY = -1; }
+            }
+            if (botLastHitX == -1) {
+                do {
+                    bx = rand() % 10;
+                    by = rand() % 10;
+                } while (botAttacked[bx][by]);
+            }
+            
+            int botResult = player.Shoot(bx, by, botAttacked);
+            if (botResult == 1) {
+                botLastHitX = bx; botLastHitY = by; //запоминаем попадание
+                SetColor(12);
+                cout << "\nБот выстрелил в (" << array[by] << ", " << bx << ") - ПОПАЛ!" << endl;
+                if (player.ShipDead(bx, by)) {
+                    botLastHitX = -1; botLastHitY = -1; //корабль потоплен
+                    cout << "Бот потопил корабль!" << endl;
+                    player.ShipBorder(bx, by, botAttacked);
+                }
+                SetColor(2);
+                Sleep(1000);
+                
+                // Проверяем победу бота
+                if (player.AllShipsDead()) {
+                    system("cls");
+                    SetColor(12);
+                    cout << "<---- БОТ ПОБЕДИЛ! ---->" << endl;
+                    SetColor(2);
+                    
+                    isRunning = false; // Сообщаем всем потокам, что конец
+                    SetEvent(hPlayerTurn); // Будим игрока, чтобы он тоже завершился
+                    break;
+                }
+                continue; //попал - ходит ещё раз (возврат к началу внутреннего цикла)
+            }
+            else {
+                cout << "\nБот выстрелил в (" << array[by] << ", " << bx << ") - мимо." << endl;
+                Sleep(1500);
+                SetEvent(hPlayerTurn); // Сигнализируем, что теперь очередь Игрока
+                break; // Выходим из цикла добивания, передаем ход
+            }
+        }
+    }
+    return 0;
+}
 
 
 int main() {
     setlocale(LC_ALL, "Russian");
     srand(time(0));
-    SeabattleGame player;
-    SeabattleGame bot;
-    char array[] = { 'A','B','C','D', 'E','F', 'G','H','I','J', 'a','b','c','d','e','f','g','h','i','j' };
+    
     system("cls");
     SetColor(14);
     cout << "<---- ВАШЕ ПОЛЕ ---->" << endl;
@@ -329,7 +463,6 @@ int main() {
 
     if (menu == 1) {
         while (true) {
-            // Расстановка
             system("cls");
             SetColor(14);
             cout << "<---- ВАШЕ ПОЛЕ ---->" << endl;
@@ -352,47 +485,29 @@ int main() {
             if (cin.fail()) {
                 cin.clear();
                 cin.ignore(10000, '\n');
-                if (size == (char)size) {
-                    cout << "Должно быть числом" << endl;
-                    Sleep(500);
-                    continue;
-                }
+                if (size == (char)size) { cout << "Должно быть числом" << endl; Sleep(500); continue; }
                 cout << "Введите число от 1 до 5" << endl;
-                cin.get();
-                continue;
+                cin.get(); continue;
             }
-
 
             if (size == 0) return 0;
 
-            if (size < 1 || size > 4) {
-                cout << "Число должно быть от 1 до 4" << endl;
-                cin.get();
-                Sleep(500);
-                continue;
-            }
+            if (size < 1 || size > 4) { cout << "Число должно быть от 1 до 4" << endl; cin.get(); Sleep(500); continue; }
 
             string msg = player.CheckShipLimit(size);
-            if (msg != "") {
-                cout << msg << endl;
-                cin.get();
-                continue;
-            }
+            if (msg != "") { cout << msg << endl; cin.get(); continue; }
 
             if (size == 1) {
                 cout << "Введите координаты (A 0):" << endl;
-                int x, y;
-                char coortLetter;
+                int x, y; char coortLetter;
                 cin >> coortLetter >> x;
 
                 y = player.SwitchLetterToDigit(coortLetter);
 
                 if (cin.fail()) {
-                    cin.clear();
-                    cin.ignore(10000, '\n');
+                    cin.clear(); cin.ignore(10000, '\n');
                     cout << "Координаты должны быть числами от 0 до 9" << endl;
-                    Sleep(500);
-                    continue;
+                    Sleep(500); continue;
                 }
 
                 msg = player.CheckCoordinates(x, y);
@@ -403,257 +518,78 @@ int main() {
 
                 player.PlaceShip(x, y, x, y, size);
                 player.IncrementShipCount(size);
-                cout << "Однопалубный корабль добавлен" << endl;
-                Sleep(500);
+                cout << "Однопалубный корабль добавлен" << endl; Sleep(500);
                 continue;
             }
 
-            // Многопалубные корабли
             cout << "Введите координаты начала (пример - A 4):" << endl;
-            int x1, y1, x2, y2;
-            char wasd;
-            char coorLetter;
+            int x1, y1, x2, y2; char wasd, coorLetter;
             cin >> coorLetter >> x1;
-
             cout << "Выберете направлене корабля:" << endl;
             cin >> wasd;
 
             if (cin.fail()) {
-                cin.clear();
-                cin.ignore(10000, '\n');
+                cin.clear(); cin.ignore(10000, '\n');
                 cout << "Координаты должны таккого формата (пример - A 4)" << endl;
-                Sleep(500);
-                continue;
+                Sleep(500); continue;
             }
 
             y1 = player.SwitchLetterToDigit(coorLetter);
 
             switch (wasd) {
-            case 'w':
-            case 'W':
-                y2 = y1 - size + 1;
-                x2 = x1;
-                break;
-            case 's':
-            case 'S':
-                y2 = y1 + size - 1;
-                x2 = x1;
-                break;
-            case 'a':
-            case 'A':
-                x2 = x1 - size + 1;
-                y2 = y1;
-                break;
-            case 'd':
-            case 'D':
-                x2 = x1 + size - 1;
-                y2 = y1;
-                break;
-            default:
-                cout << "Неверное направление!" << endl;
-                continue;
+                case 'w': case 'W': y2 = y1 - size + 1; x2 = x1; break;
+                case 's': case 'S': y2 = y1 + size - 1; x2 = x1; break;
+                case 'a': case 'A': x2 = x1 - size + 1; y2 = y1; break;
+                case 'd': case 'D': x2 = x1 + size - 1; y2 = y1; break;
+                default: cout << "Неверное направление!" << endl; continue;
             }
 
-
-            msg = player.CheckCoordinates(x1, y1);
-            if (msg != "") { cout << msg << endl;  Sleep(500); continue; }
-
-            msg = player.CheckCoordinates(x2, y2);
-            if (msg != "") { cout << msg << endl;  Sleep(500); continue; }
-
-            msg = player.CheckDirection(x1, y1, x2, y2);
-            if (msg != "") { cout << msg << endl;  Sleep(500); continue; }
-
-            msg = player.CheckLength(x1, y1, x2, y2, size);
-            if (msg != "") { cout << msg << endl; Sleep(500); continue; }
-
-            msg = player.CheckBusy(x1, y1, x2, y2);
-            if (msg != "") { cout << msg << endl; Sleep(500); continue; }
+            msg = player.CheckCoordinates(x1, y1); if (msg != "") { cout << msg << endl;  Sleep(500); continue; }
+            msg = player.CheckCoordinates(x2, y2); if (msg != "") { cout << msg << endl;  Sleep(500); continue; }
+            msg = player.CheckDirection(x1, y1, x2, y2); if (msg != "") { cout << msg << endl;  Sleep(500); continue; }
+            msg = player.CheckLength(x1, y1, x2, y2, size); if (msg != "") { cout << msg << endl; Sleep(500); continue; }
+            msg = player.CheckBusy(x1, y1, x2, y2); if (msg != "") { cout << msg << endl; Sleep(500); continue; }
 
             player.PlaceShip(x1, y1, x2, y2, size);
             player.IncrementShipCount(size);
 
             string shipNames[] = { "", "Однопалубный", "Двухпалубный", "Трёхпалубный", "Четырёхпалубный" };
-            cout << shipNames[size] << " корабль добавлен" << endl;
-            Sleep(500);
+            cout << shipNames[size] << " корабль добавлен" << endl; Sleep(500);
 
             if (player.AllShipsPlaced()) {
                 cout << "Все корабли расставлены! Начинаем бой!" << endl;
-                Sleep(500);
-                break;
+                Sleep(500); break;
             }
         }
     }
     if (menu == 2) {
         player.PlaceShipsRandom();
-        cout << "Корабли расставлены рандомно!" << endl;
-        Sleep(500);
+        cout << "Корабли расставлены рандомно!" << endl; Sleep(500);
     }
 
-    // Бот расставляет свои корабли случайно
     bot.PlaceShipsRandom();
 
-    // Массивы атакованных клеток
-    bool playerAttacked[10][10] = {}; // куда игрок уже стрелял
-    bool botAttacked[10][10] = {};    // куда бот уже стрелял 
+    // ЗАПУСК ИГРЫ 
 
-    // Ивент игрока (изначально TRUE - игрок начинает первым)
-    HANDLE hPlayerTurn = CreateEventA(NULL, FALSE, TRUE, NULL);
-    HANDLE hBotTurn = CreateEventA(NULL, FALSE, FALSE, NULL);
+    hPlayerTurn = CreateEventA(NULL, FALSE, TRUE, NULL);  // Игрок ходит первым (TRUE)
+    hBotTurn = CreateEventA(NULL, FALSE, FALSE, NULL);    // Бот ждет (FALSE)
 
-    bool gameIsOver = false;
+    HANDLE hThreads[2];
+    DWORD idThread[2];
 
-    // ----- ПОТОК ИГРОКА -----
-    thread t_player([&]() {
-        while (!gameIsOver) {
-            // Ждем своей очереди по ивенту
-            WaitForSingleObject(hPlayerTurn, INFINITE);
-            if (gameIsOver) break;
+    hThreads[0] = CreateThread(NULL, 0, PlayerThread, NULL, 0, &idThread[0]);
+    hThreads[1] = CreateThread(NULL, 0, BotThread, NULL, 0, &idThread[1]);
 
-            system("cls");
-            SetColor(14);
-            cout << "<---- ПОЛЕ БОТА ---->" << endl;
-            SetColor(2);
-            bot.DrawFieldWithAttacks(false, playerAttacked);
-            SetColor(14);
-            cout << "\n<---- ВАШЕ ПОЛЕ ---->" << endl;
-            SetColor(2);
-            player.DrawFieldWithAttacks(true, botAttacked);
-
-            SetColor(2);
-            cout << "\nВаш ход! Введите координаты выстрела (пример - A 0):" << endl;
-            int x, y;
-            char coorLetter;
-            cin >> coorLetter >> x;
-
-            y = player.SwitchLetterToDigit(coorLetter);
-
-            if (cin.fail()) {
-                cin.clear();
-                cin.ignore(10000, '\n');
-                cout << "Введите числа от 0 до 9" << endl;
-                Sleep(500);
-                SetEvent(hPlayerTurn); // Ошибка ввода - повторяем ход
-                continue;
-            }
-
-            if (x < 0 || x > 9 || y < 0 || y > 9) {
-                cout << "Координаты вне поля" << endl;
-                Sleep(500);
-                SetEvent(hPlayerTurn); // Ошибка ввода - повторяем ход
-                continue;
-            }
-
-            int result = bot.Shoot(x, y, playerAttacked);
-            if (result == 2) {
-                cout << "Вы уже стреляли сюда!" << endl;
-                Sleep(500);
-                SetEvent(hPlayerTurn); // Ошибка - повторяем ход
-                continue;
-            }
-            else if (result == 1) {
-                SetColor(12);
-                cout << "ПОПАЛ!" << endl;
-                cout << "Стреляй ещё" << endl;
-                if (bot.ShipDead(x, y)) {
-                    SetColor(12);
-                    cout << "КОРАБЛЬ УНИЧТОЖЕН!!!" << endl;
-                    bot.ShipBorder(x, y, playerAttacked);
-                    SetColor(2);
-                }
-                SetColor(2);
-                Sleep(800);
-
-                if (bot.AllShipsDead()) {
-                    system("cls");
-                    SetColor(10);
-                    cout << "<---- ВЫ ПОБЕДИЛИ! ---->" << endl;
-                    SetColor(2);
-                    gameIsOver = true;
-                    SetEvent(hBotTurn); // Будим бота, чтобы он завершил свою работу
-                    break;
-                }
-                SetEvent(hPlayerTurn); // Попал - ходим ещё раз!
-                continue;
-            }
-            else {
-                SetColor(8);
-                cout << "Мимо." << endl;
-                SetColor(2);
-                Sleep(1500);
-                SetEvent(hBotTurn); // Передаем ход боту 
-            }
-        }
-        });
-
-    // ----- ПОТОК БОТА -----
-    thread t_bot([&]() {
-        int botLastHitX = -1, botLastHitY = -1;
-
-        while (!gameIsOver) {
-            // Ждем своей очереди по ивенту
-            WaitForSingleObject(hBotTurn, INFINITE);
-            if (gameIsOver) break;
-
-            while (!gameIsOver) {
-                int bx, by;
-                if (botLastHitX != -1) {
-                    if (!botAttacked[botLastHitX - 1][botLastHitY] && botLastHitX - 1 >= 0) { bx = botLastHitX - 1; by = botLastHitY; } //влево
-                    else if (!botAttacked[botLastHitX + 1][botLastHitY] && botLastHitX + 1 <= 9) { bx = botLastHitX + 1; by = botLastHitY; } //вправо
-                    else if (!botAttacked[botLastHitX][botLastHitY - 1] && botLastHitY - 1 >= 0) { bx = botLastHitX;     by = botLastHitY - 1; } //вверх
-                    else if (!botAttacked[botLastHitX][botLastHitY + 1] && botLastHitY + 1 <= 9) { bx = botLastHitX;     by = botLastHitY + 1; } //вниз
-                    else { botLastHitX = -1; botLastHitY = -1; }
-                }
-                if (botLastHitX == -1) {
-                    do {
-                        bx = rand() % 10;
-                        by = rand() % 10;
-                    } while (botAttacked[bx][by]);
-                }
-                int botResult = player.Shoot(bx, by, botAttacked);
-                if (botResult == 1) {
-                    botLastHitX = bx; botLastHitY = by; 
-                    SetColor(12);
-                    cout << "\nБот выстрелил в (" << array[by] << ", " << bx << ") - ПОПАЛ!" << endl;
-                    if (player.ShipDead(bx, by)) {
-                        botLastHitX = -1; botLastHitY = -1; 
-                        cout << "Бот потопил корабль!" << endl;
-                        player.ShipBorder(bx, by, botAttacked);
-                    }
-                    SetColor(2);
-                    Sleep(1000);
-
-                    // Проверяем поражение игрока
-                    if (player.AllShipsDead()) {
-                        system("cls");
-                        SetColor(12);
-                        cout << "<---- БОТ ПОБЕДИЛ! ---->" << endl;
-                        SetColor(2);
-                        gameIsOver = true;
-                        SetEvent(hPlayerTurn); // Будим игрока, чтобы он завершил работу
-                        break;
-                    }
-                    continue; 
-                }
-                else {
-                    cout << "\nБот выстрелил в (" << array[by] << ", " << bx << ") - мимо." << endl;
-                    Sleep(1500);
-                    SetEvent(hPlayerTurn); // Передаем ход игроку (Активируем ивент игрока)
-                    break; 
-                }
-            }
-        }
-        });
-
-    t_player.join();
-    t_bot.join();
+    WaitForMultipleObjects(2, hThreads, TRUE, INFINITE);
 
     CloseHandle(hPlayerTurn);
     CloseHandle(hBotTurn);
+    for (int i = 0; i < 2; i++) {
+        CloseHandle(hThreads[i]);
+    }
 
-    cin.get();
-    cin.get();
+    cout << "\nИгра окончена. Нажмите Enter для выхода...";
+    cin.get(); cin.get();
 
     return 0;
 }
-
