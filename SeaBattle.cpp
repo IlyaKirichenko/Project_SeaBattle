@@ -181,7 +181,7 @@ public:
         for (int sx = minX - 1; sx <= maxX + 1; sx++) {
             for (int sy = minY - 1; sy <= maxY + 1; sy++) {
                 if (sx >= 0 && sx <= 9 && sy >= 0 && sy <= 9) {
-                    attacked[sx][sy] = true; 
+                    attacked[sx][sy] = true;
                 }
             }
         }
@@ -197,7 +197,7 @@ public:
         for (int i = 0; i < 10; i++) {
             bool placed = false;
             while (!placed) {
-                int dir = rand() % 2; 
+                int dir = rand() % 2;
                 int x1 = rand() % 10;
                 int y1 = rand() % 10;
                 int x2, y2;
@@ -284,14 +284,15 @@ bool botAttacked[10][10] = {};    // куда бот уже стрелял (по
 
 HANDLE hPlayerTurn; // Ивент: очередь Игрока
 HANDLE hBotTurn;    // Ивент: очередь Бота
-bool isRunning = true; // Флаг работы 
 
 // ПОТОК ИГРОКА
 DWORD WINAPI PlayerThread(LPVOID lpParam) {
-    while (isRunning) {
+    while (true) {
         // Ждем сигнала, что наступил наш ход
         WaitForSingleObject(hPlayerTurn, INFINITE);
-        if (!isRunning) break; // Проверяем, не закончилась ли игра пока мы спали
+
+        // Если проснулись, а игра уже окончена (победил бот) - закрываем поток
+        if (player.AllShipsDead() || bot.AllShipsDead()) return 0;
 
         system("cls");
         SetColor(14);
@@ -304,11 +305,11 @@ DWORD WINAPI PlayerThread(LPVOID lpParam) {
         player.DrawFieldWithAttacks(true, botAttacked);
 
         SetColor(2);
-        
+
         cout << "\nВаш ход! Введите координаты выстрела (пример - A 0):" << endl;
         int x, y;
         char coorLetter;
-        cin >> coorLetter >> x ;
+        cin >> coorLetter >> x;
 
         y = player.SwitchLetterToDigit(coorLetter);
 
@@ -347,20 +348,19 @@ DWORD WINAPI PlayerThread(LPVOID lpParam) {
             }
             SetColor(2);
             Sleep(800);
-            
+
             // Проверка победы игрока
             if (bot.AllShipsDead()) {
                 system("cls");
                 SetColor(10);
                 cout << "<---- ВЫ ПОБЕДИЛИ! ---->" << endl;
                 SetColor(2);
-                
-                isRunning = false; // Сообщаем всем потокам, что конец
-                SetEvent(hBotTurn); // Будим бота, чтобы он увидел isRunning 
-                break;
+
+                SetEvent(hBotTurn); // Будим бота, чтобы он увидел конец игры и тихо завершился
+                return 0; // Завершаем работу потока игрока
             }
             SetEvent(hPlayerTurn); // Ходим ещё раз
-            continue; 
+            continue;
         }
         else {
             SetColor(8);
@@ -378,12 +378,14 @@ DWORD WINAPI BotThread(LPVOID lpParam) {
     int botLastHitX = -1, botLastHitY = -1;
     char array[] = { 'A','B','C','D', 'E','F', 'G','H','I','J' };
 
-    while (isRunning) {
+    while (true) {
         // Ждем сигнала, что наступил наш ход
         WaitForSingleObject(hBotTurn, INFINITE);
-        if (!isRunning) break; 
 
-        while (isRunning) { // Внутренний цикл добивания
+        // Если проснулись, а игра уже окончена (победил игрок) - закрываем поток
+        if (player.AllShipsDead() || bot.AllShipsDead()) return 0;
+
+        while (true) { // Внутренний цикл добивания
             int bx, by;
             if (botLastHitX != -1) {
                 if (!botAttacked[botLastHitX - 1][botLastHitY] && botLastHitX - 1 >= 0) { bx = botLastHitX - 1; by = botLastHitY; } //влево
@@ -398,7 +400,7 @@ DWORD WINAPI BotThread(LPVOID lpParam) {
                     by = rand() % 10;
                 } while (botAttacked[bx][by]);
             }
-            
+
             int botResult = player.Shoot(bx, by, botAttacked);
             if (botResult == 1) {
                 botLastHitX = bx; botLastHitY = by; //запоминаем попадание
@@ -411,25 +413,24 @@ DWORD WINAPI BotThread(LPVOID lpParam) {
                 }
                 SetColor(2);
                 Sleep(1000);
-                
+
                 // Проверяем победу бота
                 if (player.AllShipsDead()) {
                     system("cls");
                     SetColor(12);
                     cout << "<---- БОТ ПОБЕДИЛ! ---->" << endl;
                     SetColor(2);
-                    
-                    isRunning = false; // Сообщаем всем потокам, что конец
+
                     SetEvent(hPlayerTurn); // Будим игрока, чтобы он тоже завершился
-                    break;
+                    return 0; // Завершаем работу потока бота
                 }
-                continue; //попал - ходит ещё раз (возврат к началу внутреннего цикла)
+                continue; //попал - ходит ещё раз 
             }
             else {
                 cout << "\nБот выстрелил в (" << array[by] << ", " << bx << ") - мимо." << endl;
                 Sleep(1500);
                 SetEvent(hPlayerTurn); // Сигнализируем, что теперь очередь Игрока
-                break; // Выходим из цикла добивания, передаем ход
+                break; 
             }
         }
     }
@@ -440,7 +441,8 @@ DWORD WINAPI BotThread(LPVOID lpParam) {
 int main() {
     setlocale(LC_ALL, "Russian");
     srand(time(0));
-    
+
+    // ... РАССТАНОВКА КОРАБЛЕЙ В ОСНОВНОМ ПОТОКЕ ...
     system("cls");
     SetColor(14);
     cout << "<---- ВАШЕ ПОЛЕ ---->" << endl;
@@ -537,11 +539,11 @@ int main() {
             y1 = player.SwitchLetterToDigit(coorLetter);
 
             switch (wasd) {
-                case 'w': case 'W': y2 = y1 - size + 1; x2 = x1; break;
-                case 's': case 'S': y2 = y1 + size - 1; x2 = x1; break;
-                case 'a': case 'A': x2 = x1 - size + 1; y2 = y1; break;
-                case 'd': case 'D': x2 = x1 + size - 1; y2 = y1; break;
-                default: cout << "Неверное направление!" << endl; continue;
+            case 'w': case 'W': y2 = y1 - size + 1; x2 = x1; break;
+            case 's': case 'S': y2 = y1 + size - 1; x2 = x1; break;
+            case 'a': case 'A': x2 = x1 - size + 1; y2 = y1; break;
+            case 'd': case 'D': x2 = x1 + size - 1; y2 = y1; break;
+            default: cout << "Неверное направление!" << endl; continue;
             }
 
             msg = player.CheckCoordinates(x1, y1); if (msg != "") { cout << msg << endl;  Sleep(500); continue; }
@@ -569,7 +571,7 @@ int main() {
 
     bot.PlaceShipsRandom();
 
-    // ЗАПУСК ИГРЫ 
+    // ЗАПУСК ИГРЫ В Win32 ПОТОКАХ
 
     hPlayerTurn = CreateEventA(NULL, FALSE, TRUE, NULL);  // Игрок ходит первым (TRUE)
     hBotTurn = CreateEventA(NULL, FALSE, FALSE, NULL);    // Бот ждет (FALSE)
